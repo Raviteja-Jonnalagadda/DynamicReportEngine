@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DRE_TEST_CARD_RPT Report</title>
+
+<!-- Local jQuery -->
+<script src="../js/jquery-3.7.1.min.js"></script>
+<!-- Chart.js for graph visualization -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background-color: #f7f8fa;
+    color: #333;
+    padding: 20px;
+  }
+  .report-header {
+    text-align: center;
+    padding: 15px;
+    background: linear-gradient(90deg, #0078d7, #00a1ff);
+    color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    margin-bottom: 20px;
+  }
+  .summary-box {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 20px;
+  }
+  .summary-item {
+    background: #fff;
+    padding: 15px 25px;
+    border-radius: 8px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+    flex: 1;
+    margin: 0 10px;
+    text-align: center;
+  }
+  .chart-section {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 25px;
+    background: #fff;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+  }
+  .chart-container {
+    width: 45%;
+  }
+  .table-section {
+    background: #fff;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 14px;
+  }
+  th, td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: center;
+  }
+  th {
+    background-color: #0078d7;
+    color: white;
+  }
+  tr:nth-child(even) {
+    background-color: #f2f8ff;
+  }
+</style>
+</head>
+<body>
+
+<div class="report-header">
+  <h2>📊 Dynamic Report: DRE_TEST_CARD_RPT</h2>
+  <p id="rpt_range"></p>
+  <p><small id="timestamp"></small></p>
+</div>
+
+<div class="summary-box">
+  <div class="summary-item">
+    <h4>Processed By</h4>
+    <p id="processed_by"></p>
+  </div>
+  <div class="summary-item">
+    <h4>Status</h4>
+    <p id="sign_status"></p>
+  </div>
+</div>
+
+<div class="chart-section">
+  <div class="chart-container">
+    <h3 style="text-align:center; color:#0078d7;">📈 Card Product Distribution (Bar)</h3>
+    <canvas id="barChart"></canvas>
+  </div>
+  <div class="chart-container">
+    <h3 style="text-align:center; color:#0078d7;">🟢 Card Product Share (Pie)</h3>
+    <canvas id="pieChart"></canvas>
+  </div>
+</div>
+
+<div class="table-section">
+  <h3 style="color:#0078d7;">Detailed Data Table</h3>
+  <table id="reportTable">
+    <thead>
+      <tr>
+        <th>CARD_PRODUCT</th>
+        <th>NUMBER_OF_CARDS</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+
+<script>
+/* ---------- 🧩 Data Arrangement Function ---------- */
+function arrangeReportData(jsonData) {
+  console.log("[DRE_TEST_CARD_RPT_sub] Arranging data:", jsonData);
+  const rpt = jsonData;
+
+  $("#processed_by").text(rpt.Processed_By);
+  $("#sign_status").text(rpt.SIGN);
+  $("#rpt_range").text("Report Range: " + rpt.RPT_RANG);
+  $("#timestamp").text("Generated on: " + rpt.TimeStamp);
+
+  // --- Parse RPT_DATA safely ---
+  let dataString = rpt.RPT_DATA.replace(/[{}]/g, "").trim();
+  const dataMap = {};
+  const keyValuePairs = dataString.match(/[^,]+?\[.*?\]|[^,]+=[^,]+/g);
+
+  if (keyValuePairs) {
+    keyValuePairs.forEach(pair => {
+      const [key, val] = pair.split("=");
+      if (key && val) {
+        const cleaned = val.replace(/\[|\]/g, "").split(",").map(v => v.trim());
+        dataMap[key.trim()] = cleaned;
+      }
+    });
+  }
+
+  console.log("[DRE_TEST_CARD_RPT_sub] ✅ Parsed dataMap:", dataMap);
+
+  // --- Extract labels and values ---
+  const labels = dataMap["CARD_PRODUCT"] || [];
+  const values = (dataMap["NUMBER_OF_CARDS"] || []).map(v => parseInt(v) || 0);
+
+  // --- Build Table ---
+  buildTable(labels, values);
+
+  // --- Build Charts ---
+  buildBarChart(labels, values);
+  buildPieChart(labels, values);
+}
+
+/* ---------- 🧩 Table Builder ---------- */
+function buildTable(labels, values) {
+  const tbody = $("#tableBody");
+  tbody.empty();
+  for (let i = 0; i < labels.length; i++) {
+    tbody.append(`<tr><td>${labels[i]}</td><td>${values[i]}</td></tr>`);
+  }
+}
+
+/* ---------- 🧩 Bar Chart ---------- */
+function buildBarChart(labels, values) {
+  new Chart(document.getElementById("barChart"), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Number of Cards',
+        data: values,
+        backgroundColor: ['#0078d7','#00a1ff','#00c3a1','#8b5cf6','#f59e0b'],
+        borderRadius: 6
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      responsive: true,
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+
+/* ---------- 🧩 Pie Chart ---------- */
+function buildPieChart(labels, values) {
+  const total = values.reduce((a,b)=>a+b,0);
+  const percentages = values.map(v => ((v/total)*100).toFixed(1));
+  new Chart(document.getElementById("pieChart"), {
+    type: 'pie',
+    data: {
+      labels: labels.map((l, i) => `${l} (${percentages[i]}%)`),
+      datasets: [{
+        data: values,
+        backgroundColor: ['#0078d7','#00a1ff','#00c3a1','#8b5cf6','#f59e0b']
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { position: 'right' },
+        tooltip: { callbacks: { label: ctx => `${ctx.label}` } }
+      }
+    }
+  });
+}
+
+/* ---------- 🧩 Example Data Load ---------- */
+// This section simulates data received from parent window or API
+$(document).ready(function() {
+  const sampleData = {
+    Processed_By: "DRE [Dynamic Report Engine Application]",
+    RPT_DATA: "{CARD_PRODUCT=[GFT, NCM, GPR, MTS, FRX], NUMBER_OF_CARDS=[5, 5, 2, 2, 6]}",
+    SIGN: "DONE",
+    RPT_RANG: "2025-02-11 - 2025-11-26",
+    RPT_NAME: "DRE_TEST_CARD_RPT",
+    TimeStamp: "02-Nov-2025 11:11:37"
+  };
+  arrangeReportData(sampleData);
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dynamic Report Engine - Report Viewer</title>
+
+<!-- ✅ Local jQuery -->
+<script src="../js/jquery-3.7.1.min.js"></script>
+
+<!-- ✅ Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+
+<style>
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f8f9fa;
+    margin: 0;
+    padding: 0;
+  }
+  header {
+    background: linear-gradient(90deg, #0078d7, #005fa3);
+    color: white;
+    padding: 12px 20px;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+  #loader {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    background: rgba(255,255,255,0.8);
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: #0078d7;
+  }
+  #reportContainer {
+    margin: 20px;
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  }
+  #exportSection {
+    margin: 20px;
+    text-align: center;
+  }
+  #exportSection button {
+    background-color: #0078d7;
+    border: none;
+    color: white;
+    padding: 8px 15px;
+    margin: 5px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: 0.2s ease;
+  }
+  #exportSection button:hover {
+    background-color: #005fa3;
+    transform: scale(1.05);
+  }
+</style>
+</head>
+
+<body>
+<header>Dynamic Report Engine - Report Viewer</header>
+
+<div id="loader">⏳ Generating Report, please wait...</div>
+
+<div id="reportContainer">
+  <em>Loading report content...</em>
+</div>
+
+<div id="exportSection" style="display:none;">
+  <button id="exportPdf">Export PDF</button>
+  <button id="exportXlsx">Export XLSX</button>
+  <button id="exportCsv">Export CSV</button>
+  <button id="exportWord">Export Word</button>
+  <button id="exportAll">Download All</button>
+</div>
+
+<script>
+$(document).ready(function() {
+  const jsn = "[DRE_main]";
+  const showLoader = () => $("#loader").css("display", "flex");
+  const hideLoader = () => $("#loader").hide();
+
+  const reportName = sessionStorage.getItem("dre_report_name");
+  const reportData = sessionStorage.getItem("dre_report_data");
+
+  if (!reportName || !reportData) {
+    alert("Report data not found! Please generate again.");
+    window.location.href = "ReportSelection.html";
+    return;
+  }
+
+  const jsonData = JSON.parse(reportData);
+  const subHtmlPath = `../subhtml/${reportName}_sub.html`;
+
+  showLoader();
+  $("#reportContainer").load(subHtmlPath, function(response, status, xhr) {
+    if (status === "error") {
+      hideLoader();
+      alert("Failed to load subhtml: " + xhr.status + " " + xhr.statusText);
+      return;
+    }
+
+    setTimeout(() => {
+      if (typeof arrangeReportData === "function") {
+        arrangeReportData(jsonData);
+        hideLoader();
+        $("#exportSection").fadeIn();
+        sessionStorage.removeItem("dre_report_name");
+        sessionStorage.removeItem("dre_report_data");
+      } else {
+        hideLoader();
+        alert("Subhtml loaded but arrangeReportData() missing.");
+      }
+    }, 800);
+  });
+
+  /** ============ EXPORT FUNCTIONS ============ **/
+
+  // ✅ Export PDF (includes charts)
+  function exportPDF() {
+    html2canvas($('#reportContainer')[0], {scale: 2}).then(canvas => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF("p", "pt", "a4");
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = 595;
+      const imgHeight = canvas.height * imgWidth / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      pdf.save(`${reportName}.pdf`);
+    });
+  }
+
+  function exportXlsx() {
+    const table = $('#reportContainer').find('table')[0];
+    if (!table) return alert('No table found to export!');
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.table_to_sheet(table);
+
+    // Style info similar to preview colors
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+        if (!ws[cellRef]) continue;
+
+        if (R === 0) { // header row
+          ws[cellRef].s = {
+            fill: { fgColor: { rgb: "0078D7" } },
+            font: { color: { rgb: "FFFFFF" }, bold: true },
+            alignment: { horizontal: "center", vertical: "center" },
+            border: {
+              top: { style: "thin", color: { rgb: "CCCCCC" } },
+              bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+              left: { style: "thin", color: { rgb: "CCCCCC" } },
+              right: { style: "thin", color: { rgb: "CCCCCC" } }
+            }
+          };
+        } else {
+          const bg = (R % 2 === 0) ? "F2F8FF" : "FFFFFF";
+          ws[cellRef].s = {
+            fill: { fgColor: { rgb: bg } },
+            alignment: { horizontal: "center", vertical: "center" },
+            border: {
+              top: { style: "thin", color: { rgb: "CCCCCC" } },
+              bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+              left: { style: "thin", color: { rgb: "CCCCCC" } },
+              right: { style: "thin", color: { rgb: "CCCCCC" } }
+            }
+          };
+        }
+      }
+    }
+
+    XLSX.utils.book_append_sheet(wb, ws, "Report");
+    XLSX.writeFile(wb, `${reportName}.xlsx`, { bookSST: true, cellStyles: true });
+  }
+
+
+  // ✅ Export CSV
+  function exportCsv() {
+    const table = $('#reportContainer').find('table')[0];
+    if (!table) return alert('No table found!');
+    const data = XLSX.utils.sheet_to_json(XLSX.utils.table_to_sheet(table), {header:1});
+    const csv = Papa.unparse(data);
+    const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+    saveAs(blob, `${reportName}.csv`);
+  }
+
+  // ✅ Export Word (with charts as images)
+  function exportWord() {
+    html2canvas($('#reportContainer')[0], {scale:2}).then(canvas => {
+      const imgData = canvas.toDataURL("image/png");
+      const html = `
+        <html><head><meta charset='utf-8'></head>
+        <body><img src='${imgData}' style='width:100%;height:auto;'/></body></html>`;
+      const blob = window.htmlDocx.asBlob(html);
+      saveAs(blob, `${reportName}.docx`);
+    });
+  }
+
+  // ✅ Export All
+  function exportAll() {
+    exportPDF();
+    setTimeout(exportXlsx, 1000);
+    setTimeout(exportCsv, 2000);
+    setTimeout(exportWord, 3000);
+  }
+
+  $('#exportPdf').on('click', exportPDF);
+  $('#exportXlsx').on('click', exportXlsx);
+  $('#exportCsv').on('click', exportCsv);
+  $('#exportWord').on('click', exportWord);
+  $('#exportAll').on('click', exportAll);
+});
+</script>
+</body>
+</html>

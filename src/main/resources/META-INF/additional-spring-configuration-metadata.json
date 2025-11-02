@@ -1,0 +1,32 @@
+{"properties": [
+  {
+    "name": "DRE.DB.INFO.USN",
+    "type": "java.lang.String",
+    "description": "A description for 'DRE.DB.INFO.USN'"
+  },
+  {
+    "name": "DRE.DB.INFO.URL",
+    "type": "java.lang.String",
+    "description": "A description for 'DRE.DB.INFO.URL'"
+  },
+  {
+    "name": "DRE.RPT.QUERY",
+    "type": "java.lang.String",
+    "description": "A description for 'DRE.RPT.QUERY'"
+  },
+  {
+    "name": "DRE.DB.INFO.PWD",
+    "type": "java.lang.String",
+    "description": "A description for 'DRE.DB.INFO.PWD'"
+  },
+  {
+    "name": "DRE.RPT.QUERY",
+    "type": "java.lang.String",
+    "description": "A description for 'DRE.RPT.QUERY'"
+  }
+]}{
+    "name": "DRE.RPT.QUERY",
+    "type": "java.lang.String",
+    "description": "A description for 'DRE.RPT.QUERY'"
+  }
+]}

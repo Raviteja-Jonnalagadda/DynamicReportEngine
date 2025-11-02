@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DRE_SAMPLE_RPT_1 Report</title>
+
+<!-- Local jQuery -->
+<script src="../js/jquery-3.7.1.min.js"></script>
+<!-- Chart.js for graph visualization -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- jsPDF & XLSX for export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background-color: #f7f8fa;
+    color: #333;
+  }
+  .report-header {
+    text-align: center;
+    padding: 15px;
+    background: linear-gradient(90deg, #0078d7, #00a1ff);
+    color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .summary-box {
+    display: flex;
+    justify-content: space-around;
+    margin: 20px 0;
+  }
+  .summary-item {
+    background: #fff;
+    padding: 15px 25px;
+    border-radius: 8px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+    flex: 1;
+    margin: 0 10px;
+    text-align: center;
+  }
+  .chart-section {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin: 20px;
+    background: #fff;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+  }
+  .chart-container {
+    width: 45%;
+  }
+  .table-section {
+    margin: 20px;
+    background: #fff;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 14px;
+  }
+  th, td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: center;
+  }
+  th {
+    background-color: #0078d7;
+    color: white;
+  }
+  tr:nth-child(even) {
+    background-color: #f2f8ff;
+  }
+  .export-buttons {
+    text-align: center;
+    margin-bottom: 15px;
+  }
+  .export-buttons button {
+    margin: 5px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    color: #fff;
+    background: linear-gradient(90deg, #0078d7, #00a1ff);
+    transition: background 0.3s ease;
+  }
+  .export-buttons button:hover {
+    background: linear-gradient(90deg, #005fa3, #0085cc);
+  }
+</style>
+</head>
+<body>
+
+<div class="report-header">
+  <h2>📊 Dynamic Report: DRE_SAMPLE_RPT_1</h2>
+  <p id="rpt_range"></p>
+  <p><small id="timestamp"></small></p>
+</div>
+
+<div class="summary-box">
+  <div class="summary-item">
+    <h4>Processed By</h4>
+    <p id="processed_by"></p>
+  </div>
+  <div class="summary-item">
+    <h4>Status</h4>
+    <p id="sign_status"></p>
+  </div>
+  <div class="summary-item">
+    <h4>Maker Date</h4>
+    <p id="maker_dttm"></p>
+  </div>
+</div>
+
+<div class="chart-section">
+  <div class="chart-container">
+    <h3 style="text-align:center; color:#0078d7;">📈 CL Value Bar Graph</h3>
+    <canvas id="rptChart"></canvas>
+  </div>
+  <div class="chart-container">
+    <h3 style="text-align:center; color:#0078d7;">🟢 CL Value Pie Chart</h3>
+    <canvas id="pieChart"></canvas>
+  </div>
+</div>
+
+<div class="table-section">
+  <div class="export-buttons">
+    <button onclick="generatePDF()">📄 Export PDF</button>
+    <button onclick="generateCSV()">📊 Export CSV</button>
+    <button onclick="generateXLSX()">📘 Export XLSX</button>
+    <button onclick="generateWord()">📝 Export Word</button>
+    <button onclick="generateAllFormats()">📦 Export All</button>
+  </div>
+
+  <h3 style="color:#0078d7;">Detailed Data Table</h3>
+  <table id="reportTable">
+    <thead>
+      <tr id="tableHeader"></tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+
+<script>
+/* ---------- 🧩 Data Arrangement Function ---------- */
+
+function arrangeReportData(jsonData) {
+  console.log("[DRE_SAMPLE_RPT_1_sub] Arranging data:", jsonData);
+  const rpt = jsonData;
+
+  $("#processed_by").text(rpt.Processed_By);
+  $("#sign_status").text(rpt.SIGN);
+  $("#rpt_range").text("Report Range: " + rpt.RPT_RANG);
+  $("#timestamp").text("Generated on: " + rpt.TimeStamp);
+
+  let dataString = rpt.RPT_DATA.replace(/[{}]/g, "").trim();
+  const dataMap = {};
+
+  // ✅ Split only on commas that are outside of square brackets
+  const keyValuePairs = dataString.match(/[^,]+?\[.*?\]|[^,]+=[^,]+/g);
+
+  if (keyValuePairs) {
+    keyValuePairs.forEach(pair => {
+      const [key, val] = pair.split("=");
+      if (key && val) {
+        // Remove square brackets and extra spaces, then split by comma
+        const cleaned = val.replace(/\[|\]/g, "").split(",").map(v => v.trim());
+        dataMap[key.trim()] = cleaned;
+      }
+    });
+  }
+
+  console.log("[DRE_SAMPLE_RPT_1_sub] ✅ Parsed dataMap:", dataMap);
+
+  $("#maker_dttm").text(dataMap["MAKER_DTTM"] ? dataMap["MAKER_DTTM"][0] : "-");
+
+  buildTable(dataMap);
+
+  // Charts
+  const labels = Object.keys(dataMap).filter(k => k.startsWith("CL"));
+  const values = labels.map(k => {
+    const nums = dataMap[k].map(v => parseInt(v.replace(/[^0-9]/g, '')) || 0);
+    return nums.reduce((a, b) => a + b, 0);
+  });
+
+  buildGraphChart(labels, values);
+  buildPieChart(labels, values);
+}
+
+
+/* ---------- 🧩 Table Builder ---------- */
+function buildTable(dataMap) {
+	console.log('[DRE_SAMPLE_RPT_1_sub] [buildTable] The recived data is --> '+JSON.stringify(dataMap));
+  const keys = Object.keys(dataMap);
+  const tableHeader = $("#tableHeader");
+  const tableBody = $("#tableBody");
+  tableHeader.empty();
+  tableBody.empty();
+
+  // Create header row
+  keys.forEach(k => tableHeader.append(`<th>${k}</th>`));
+
+  // Determine max rows
+  const maxRows = Math.max(...keys.map(k => dataMap[k].length));
+  for (let i = 0; i < maxRows; i++) {
+    let row = "<tr>";
+    keys.forEach(k => {
+      row += `<td>${dataMap[k][i] || ""}</td>`;
+    });
+    row += "</tr>";
+    tableBody.append(row);
+  }
+}
+
+/* ---------- 🧩 Graph Builder (Bar) ---------- */
+function buildGraphChart(labels, values) {
+	console.log('[DRE_SAMPLE_RPT_1_sub] [buildTable] The recived data is --> Lables [ '+labels+' ]  Values  -->  [ '+values+' ]');
+  new Chart(document.getElementById("rptChart"), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'CL Values',
+        data: values,
+        backgroundColor: ['#0078d7','#00a1ff','#00c3a1','#8b5cf6','#f59e0b'],
+        borderRadius: 6
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      responsive: true,
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+
+/* ---------- 🧩 Pie Chart Builder ---------- */
+function buildPieChart(labels, values) {
+	console.log('[DRE_SAMPLE_RPT_1_sub] [buildTable] The recived data is --> Lables [ '+labels+' ]  Values  -->  [ '+values+' ]');
+  const total = values.reduce((a,b)=>a+b,0);
+  const percentages = values.map(v => ((v/total)*100).toFixed(1));
+  new Chart(document.getElementById("pieChart"), {
+    type: 'pie',
+    data: {
+      labels: labels.map((l, i) => `${l} (${percentages[i]}%)`),
+      datasets: [{
+        data: values,
+        backgroundColor: ['#0078d7','#00a1ff','#00c3a1','#8b5cf6','#f59e0b']
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { position: 'right' },
+        tooltip: { callbacks: { label: ctx => `${ctx.label}` } }
+      }
+    }
+  });
+}
+
+/* ---------- 🧩 Export Functions ---------- */
+function generatePDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.text("Dynamic Report Export - PDF", 10, 10);
+  doc.html(document.body, { callback: function (pdf) { pdf.save("Report.pdf"); } });
+}
+
+function generateCSV() {
+  let csv = "";
+  $("#reportTable tr").each(function() {
+    const row = $(this).find("th,td").map(function() { return $(this).text(); }).get().join(",");
+    csv += row + "\n";
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = "Report.csv";
+  a.click();
+}
+
+function generateXLSX() {
+  const wb = XLSX.utils.table_to_book(document.getElementById("reportTable"), { sheet: "Report" });
+  XLSX.writeFile(wb, "Report.xlsx");
+}
+
+function generateWord() {
+  const html = document.getElementById("reportTable").outerHTML;
+  const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = "Report.doc";
+  link.click();
+}
+
+function generateAllFormats() {
+  generatePDF();
+  generateCSV();
+  generateXLSX();
+  generateWord();
+}
+</script>
+</body>
+</html>
